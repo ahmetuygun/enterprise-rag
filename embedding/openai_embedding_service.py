@@ -8,5 +8,10 @@ class OpenAIEmbeddingService(EmbeddingService):
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
-    def embed_batch(self, texts: List[str]) -> List[float]:
-        return self.api_key.embed(texts)
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=texts,
+        )
+        ordered = sorted(response.data, key=lambda item: item.index)
+        return [item.embedding for item in ordered]
