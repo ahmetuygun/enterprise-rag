@@ -112,10 +112,12 @@ if __name__ == "__main__":
         vector_repository=PostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
         cleaner=DocumentCleaner(),
         parser=DocumentParser(),
-        chunker=RecursiveDocumentChunker(chunk_size=500)
+        chunker=RecursiveDocumentChunker(chunk_size=500),
+        batch_size=5,
     )
 
-    pipeline.run(Path("2608.06362v1.pdf"))
+    embedded = pipeline.run(Path("2608.06362v1.pdf"))
+    print(f"embedded this run: {len(embedded)}")
 
     # parser = DocumentParser()
     # document = parser.parse(Path("2608.06362v1.pdf"))
