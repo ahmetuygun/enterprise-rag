@@ -18,5 +18,10 @@ class VectorRepository(Protocol):
     ) -> None:
         ...
 
-    def search(self, query_embedding: list[float], limit: int = 5) -> list[EmbeddedChunk]:
+    def search(
+        self,
+        query_embedding: list[float],
+        limit: int = 5,
+        threshold: float | None = None,
+    ) -> list[EmbeddedChunk]:
         ...

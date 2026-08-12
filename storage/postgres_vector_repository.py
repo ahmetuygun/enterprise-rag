@@ -23,6 +23,15 @@ class PostgresVectorRepository(VectorRepository):
             ON chunks ((metadata->>'filename'), chunk_index)
             """
         )
+        # Cosine distance (<=>) queries need vector_cosine_ops.
+        self.conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw_idx
+            ON chunks
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64)
+            """
+        )
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS dead_letter_chunks (
@@ -104,15 +113,37 @@ class PostgresVectorRepository(VectorRepository):
                 )
             self.conn.commit()
 
-    def search(self, query_embedding: list[float], limit: int = 5) -> list[EmbeddedChunk]:
-        sql = """
-        SELECT content, chunk_index, metadata, embedding
-        FROM chunks
-        ORDER BY embedding <=> %s
-        LIMIT %s
-        """
+    def search(
+        self,
+        query_embedding: list[float],
+        limit: int = 5,
+        threshold: float | None = None,
+    ) -> list[EmbeddedChunk]:
+        # threshold = max cosine distance (<=>). Lower is more similar.
+        # None = no distance filter.
+        if threshold is not None and threshold < 0:
+            raise ValueError("threshold must be >= 0")
+
+        if threshold is None:
+            sql = """
+            SELECT content, chunk_index, metadata, embedding
+            FROM chunks
+            ORDER BY embedding <=> %s
+            LIMIT %s
+            """
+            params = (query_embedding, limit)
+        else:
+            sql = """
+            SELECT content, chunk_index, metadata, embedding
+            FROM chunks
+            WHERE embedding <=> %s <= %s
+            ORDER BY embedding <=> %s
+            LIMIT %s
+            """
+            params = (query_embedding, threshold, query_embedding, limit)
+
         with self.conn.cursor() as cursor:
-            cursor.execute(sql, (query_embedding, limit))
+            cursor.execute(sql, params)
             return [
                 EmbeddedChunk(
                     text=row[0],
