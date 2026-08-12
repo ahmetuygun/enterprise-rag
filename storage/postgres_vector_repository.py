@@ -128,16 +128,17 @@ class PostgresVectorRepository(VectorRepository):
             sql = """
             SELECT content, chunk_index, metadata, embedding
             FROM chunks
-            ORDER BY embedding <=> %s
+            ORDER BY embedding <=> %s::vector
             LIMIT %s
             """
             params = (query_embedding, limit)
         else:
+            # Parentheses required: <=> has lower precedence than <=.
             sql = """
             SELECT content, chunk_index, metadata, embedding
             FROM chunks
-            WHERE embedding <=> %s <= %s
-            ORDER BY embedding <=> %s
+            WHERE (embedding <=> %s::vector) <= %s
+            ORDER BY embedding <=> %s::vector
             LIMIT %s
             """
             params = (query_embedding, threshold, query_embedding, limit)
@@ -149,7 +150,19 @@ class PostgresVectorRepository(VectorRepository):
                     text=row[0],
                     index=row[1],
                     metadata=row[2],
-                    embedding=list(row[3]),
+                    embedding=self._as_float_list(row[3]),
                 )
                 for row in cursor.fetchall()
             ]
+
+    @staticmethod
+    def _as_float_list(value) -> list[float]:
+        if isinstance(value, list):
+            return value
+        if hasattr(value, "to_list"):
+            return value.to_list()
+        if hasattr(value, "tolist"):
+            return value.tolist()
+        if hasattr(value, "to_numpy"):
+            return value.to_numpy().tolist()
+        raise TypeError(f"cannot convert embedding type {type(value)!r} to list[float]")

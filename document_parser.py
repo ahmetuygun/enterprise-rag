@@ -103,6 +103,7 @@ if __name__ == "__main__":
     from embedding.huggingface_embedding_service import HuggingFaceEmbeddingService
     from storage.postgres_vector_repository import PostgresVectorRepository
     from embedding_pipeline import EmbeddingPipeline
+    from retrieval_pipeline import RetrievalPipeline
 
     openai_api_key = os.environ["OPENAI_API_KEY"]
     hf_api_key = os.environ["HF_TOKEN"]
@@ -118,6 +119,15 @@ if __name__ == "__main__":
 
     embedded = pipeline.run(Path("2608.06362v1.pdf"))
     print(f"embedded this run: {len(embedded)}")
+
+    retrieval_pipeline = RetrievalPipeline(
+        vector_repository=PostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
+        embedding_service=HuggingFaceEmbeddingService(api_key=hf_api_key),
+        top_k=5,
+        threshold=0.5
+    )
+    results = retrieval_pipeline.retrieve(query="What is the main idea of the paper?")
+    print(f"results: {results}")
 
     # parser = DocumentParser()
     # document = parser.parse(Path("2608.06362v1.pdf"))
