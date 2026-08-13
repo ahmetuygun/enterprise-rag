@@ -126,22 +126,24 @@ class PostgresVectorRepository(VectorRepository):
 
         if threshold is None:
             sql = """
-            SELECT content, chunk_index, metadata, embedding
+            SELECT content, chunk_index, metadata, embedding,
+                   embedding <=> %s::vector AS distance
             FROM chunks
-            ORDER BY embedding <=> %s::vector
+            ORDER BY distance
             LIMIT %s
             """
             params = (query_embedding, limit)
         else:
             # Parentheses required: <=> has lower precedence than <=.
             sql = """
-            SELECT content, chunk_index, metadata, embedding
+            SELECT content, chunk_index, metadata, embedding,
+                   embedding <=> %s::vector AS distance
             FROM chunks
             WHERE (embedding <=> %s::vector) <= %s
-            ORDER BY embedding <=> %s::vector
+            ORDER BY distance
             LIMIT %s
             """
-            params = (query_embedding, threshold, query_embedding, limit)
+            params = (query_embedding, query_embedding, threshold, limit)
 
         with self.conn.cursor() as cursor:
             cursor.execute(sql, params)
@@ -151,6 +153,7 @@ class PostgresVectorRepository(VectorRepository):
                     index=row[1],
                     metadata=row[2],
                     embedding=self._as_float_list(row[3]),
+                    distance=float(row[4]),
                 )
                 for row in cursor.fetchall()
             ]

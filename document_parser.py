@@ -23,6 +23,7 @@ class EmbeddedChunk:
     index: int
     metadata: dict
     embedding: list[float]
+    distance: float | None = None
 
 @dataclass
 class Page:
@@ -124,10 +125,22 @@ if __name__ == "__main__":
         vector_repository=PostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
         embedding_service=HuggingFaceEmbeddingService(api_key=hf_api_key),
         top_k=5,
-        threshold=0.5
+        threshold=None,
     )
-    results = retrieval_pipeline.retrieve(query="What is the main idea of the paper?")
-    print(f"results: {results}")
+    queries = [
+        "What is the main idea of the paper?",
+        "What problem does the paper address?",
+        "What is the main contribution of the paper?",
+    ]
+    for query in queries:
+        print("\n" + "=" * 80)
+        print(f"QUERY: {query}")
+        print("=" * 80)
+        results = retrieval_pipeline.retrieve(query=query)
+        for i, chunk in enumerate(results, start=1):
+            print(f"\n[{i}] distance={chunk.distance:.4f} chunk_index={chunk.index}")
+            print(chunk.text)
+
 
     # parser = DocumentParser()
     # document = parser.parse(Path("2608.06362v1.pdf"))
