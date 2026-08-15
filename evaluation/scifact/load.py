@@ -39,7 +39,3 @@ def load_scifact(data_dir: Path = DATA_DIR, split: str = "test"):
     return corpus, queries, qrels
 
 
-if __name__ == "__main__":
-    corpus, queries, qrels = load_scifact()
-    print(len(corpus), len(queries), len(qrels))
-    print(next(iter(qrels.items())))

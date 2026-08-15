@@ -105,10 +105,27 @@ if __name__ == "__main__":
     from storage.postgres_vector_repository import PostgresVectorRepository
     from embedding_pipeline import EmbeddingPipeline
     from retrieval_pipeline import RetrievalPipeline
-
+    from evaluation.scifact.load import load_scifact
+    from chunker import JsonDocumentChunker
     openai_api_key = os.environ["OPENAI_API_KEY"]
     hf_api_key = os.environ["HF_TOKEN"]
+
+    corpus, queries, qrels = load_scifact()
+    embedding_pipeline = EmbeddingPipeline(
+        embedding_service=OpenAIEmbeddingService(api_key=openai_api_key),
+        vector_repository=PostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
+        chunker=JsonDocumentChunker(),
+        cleaner=None,
+        parser=None,
+        batch_size=5,
+    )
+    corpus = dict(list(corpus.items())[:100])  # sadece ilk 100
+    embedded = embedding_pipeline.run_json(corpus)
+    print(f"embedded: {len(embedded)}")
+
+
     
+'''
     pipeline = EmbeddingPipeline(
         embedding_service=HuggingFaceEmbeddingService(api_key=hf_api_key),
         vector_repository=PostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
@@ -140,7 +157,7 @@ if __name__ == "__main__":
         for i, chunk in enumerate(results, start=1):
             print(f"\n[{i}] distance={chunk.distance:.4f} chunk_index={chunk.index}")
             print(chunk.text)
-
+'''
 
     # parser = DocumentParser()
     # document = parser.parse(Path("2608.06362v1.pdf"))

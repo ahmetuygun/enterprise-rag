@@ -178,3 +178,30 @@ class MarkdownDocumentChunker:
                 sections.append(section)
 
         return sections
+
+
+class JsonDocumentChunker:
+    """Treat each JSON/BEIR document as a single chunk (no splitting)."""
+
+    def chunk_document(self, doc_id: str, document: dict, index: int = 0) -> Chunk:
+        title = (document.get("title") or "").strip()
+        text = (document.get("text") or "").strip()
+        content = f"{title}\n{text}".strip() if title else text
+        return Chunk(
+            text=content,
+            index=index,
+            metadata={
+                # filename used by DB unique index + checkpoint helpers
+                "filename": doc_id,
+                "doc_id": doc_id,
+                "title": title,
+                "strategy": "json_document",
+            },
+        )
+
+    def chunk_corpus(self, corpus: dict[str, dict]) -> list[Chunk]:
+        # One JSON row -> one chunk; chunk_index is unique across the corpus.
+        return [
+            self.chunk_document(doc_id, document, index=index)
+            for index, (doc_id, document) in enumerate(corpus.items())
+        ]

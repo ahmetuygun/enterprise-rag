@@ -57,18 +57,22 @@ class PostgresVectorRepository(VectorRepository):
         VALUES (%s, %s, %s::jsonb, %s)
         ON CONFLICT ((metadata->>'filename'), chunk_index) DO NOTHING
         """
-        with self.conn.cursor() as cursor:
-            for chunk in chunks:
-                cursor.execute(
-                    sql,
-                    (
-                        chunk.text,
-                        chunk.index,
-                        Jsonb(chunk.metadata),
-                        chunk.embedding,
-                    ),
-                )
-            self.conn.commit()
+        try:
+            with self.conn.cursor() as cursor:
+                for chunk in chunks:
+                    cursor.execute(
+                        sql,
+                        (
+                            chunk.text,
+                            chunk.index,
+                            Jsonb(chunk.metadata),
+                            chunk.embedding,
+                        ),
+                    )
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_last_chunk_index(self, filename: str) -> int | None:
         row = self.conn.execute(
@@ -82,6 +86,17 @@ class PostgresVectorRepository(VectorRepository):
         if row is None or row[0] is None:
             return None
         return int(row[0])
+
+    def get_indexed_doc_ids(self) -> set[str]:
+        rows = self.conn.execute(
+            """
+            SELECT DISTINCT COALESCE(metadata->>'doc_id', metadata->>'filename')
+            FROM chunks
+            WHERE metadata->>'doc_id' IS NOT NULL
+               OR metadata->>'filename' IS NOT NULL
+            """
+        ).fetchall()
+        return {row[0] for row in rows if row[0]}
 
     def save_dlq(
         self,

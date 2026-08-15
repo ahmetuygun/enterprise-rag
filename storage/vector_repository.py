@@ -10,6 +10,9 @@ class VectorRepository(Protocol):
     def get_last_chunk_index(self, filename: str) -> int | None:
         ...
 
+    def get_indexed_doc_ids(self) -> set[str]:
+        ...
+
     def save_dlq(
         self,
         chunks: List[Chunk],

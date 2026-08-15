@@ -12,9 +12,9 @@ class EmbeddingPipeline:
         self,
         embedding_service: EmbeddingService,
         vector_repository: VectorRepository,
-        cleaner: DocumentCleaner,
-        parser: DocumentParser,
         chunker: Chunker,
+        cleaner: DocumentCleaner | None = None,
+        parser: DocumentParser | None = None,
         batch_size: int = 5,
         max_retries: int = 3,
         base_delay: float = 1.0,
@@ -60,6 +60,49 @@ class EmbeddingPipeline:
             embedded_all.extend(embedded_batch)
             print(
                 f"saved batch chunk_index={batch[0].index}..{batch[-1].index} "
+                f"({len(embedded_batch)} chunks)"
+            )
+
+        return embedded_all
+
+
+    def run_json(self, corpus: dict[str, dict]) -> list[EmbeddedChunk]:
+        if not hasattr(self.chunker, "chunk_corpus"):
+            raise TypeError(
+                "run_json requires a chunker with chunk_corpus(), "
+                f"got {type(self.chunker).__name__}"
+            )
+
+        chunks = self.chunker.chunk_corpus(corpus)
+
+        # Checkpoint: skip docs already stored (one chunk per doc_id).
+        indexed = self.vector_repository.get_indexed_doc_ids()
+        if indexed:
+            before = len(chunks)
+            chunks = [
+                chunk
+                for chunk in chunks
+                if chunk.metadata.get("doc_id") not in indexed
+            ]
+            print(
+                f"checkpoint skip indexed docs={before - len(chunks)}, "
+                f"remaining={len(chunks)}"
+            )
+
+        if not chunks:
+            print("nothing to embed")
+            return []
+
+        embedded_all: list[EmbeddedChunk] = []
+        for start in range(0, len(chunks), self.batch_size):
+            batch = chunks[start : start + self.batch_size]
+            embedded_batch = self._process_batch_with_retry(batch)
+            if embedded_batch is None:
+                continue
+            embedded_all.extend(embedded_batch)
+            doc_ids = [chunk.metadata.get("doc_id", "?") for chunk in batch]
+            print(
+                f"saved batch docs={doc_ids[0]}..{doc_ids[-1]} "
                 f"({len(embedded_batch)} chunks)"
             )
 
