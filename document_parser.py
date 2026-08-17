@@ -107,6 +107,8 @@ if __name__ == "__main__":
     from retrieval_pipeline import RetrievalPipeline
     from evaluation.scifact.load import load_scifact
     from chunker import JsonDocumentChunker
+    from rerank.bge_rerank_service import BGERerankService
+    from context_builder import ContextBuilder
     openai_api_key = os.environ["OPENAI_API_KEY"]
     hf_api_key = os.environ["HF_TOKEN"]
 
@@ -119,12 +121,48 @@ if __name__ == "__main__":
         parser=None,
         batch_size=5,
     )
-    corpus = dict(list(corpus.items())[:100])  # sadece ilk 100
+    corpus = dict(list(corpus.items())[:5183])  # sadece ilk 100
     embedded = embedding_pipeline.run_json(corpus)
     print(f"embedded: {len(embedded)}")
 
+    TOP_K = 20
+    TOP_N = 5
+    retrieval_pipeline = RetrievalPipeline(
+        vector_repository=PostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
+        embedding_service=OpenAIEmbeddingService(api_key=openai_api_key),
+        top_k=TOP_K,
+        top_n=TOP_N,
+        threshold=None,
+        rerank_service=BGERerankService(),
+    )
 
-    
+
+    MAX_QUERIES = 20  # keep small while testing
+    hits = 0
+    total = 0
+    context_builder = ContextBuilder()
+
+    for qid in list(qrels.keys())[:MAX_QUERIES]:
+        query = queries[qid]
+        gold = set(qrels[qid].keys())
+
+        results = retrieval_pipeline.retrieve(query)
+        context = context_builder.build(results)
+        retrieved = {chunk.metadata.get("doc_id") for chunk in results}
+
+        found = gold & retrieved
+        ok = len(found) > 0
+        hits += int(ok)
+        total += 1
+
+        print(f"qid={qid} {'HIT' if ok else 'MISS'} gold={gold} got={retrieved}")
+        if total == 1:
+            print("\n--- sample context ---\n")
+            print(context)
+            print("\n--- end context ---\n")
+
+    print(f"\nHIT@{TOP_K}: {hits}/{total} = {hits / total if total else 0:.3f}")
+
 '''
     pipeline = EmbeddingPipeline(
         embedding_service=HuggingFaceEmbeddingService(api_key=hf_api_key),
