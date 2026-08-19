@@ -109,6 +109,8 @@ if __name__ == "__main__":
     from chunker import JsonDocumentChunker
     from rerank.bge_rerank_service import BGERerankService
     from context_builder import ContextBuilder
+    from prompt_builder import PromptBuilder
+    from llm.openai_llm_service import OpenAILLMService
     openai_api_key = os.environ["OPENAI_API_KEY"]
     hf_api_key = os.environ["HF_TOKEN"]
 
@@ -136,32 +138,27 @@ if __name__ == "__main__":
         rerank_service=BGERerankService(),
     )
 
-
-    MAX_QUERIES = 20  # keep small while testing
-    hits = 0
-    total = 0
     context_builder = ContextBuilder()
+    prompt_builder = PromptBuilder()
+    llm = OpenAILLMService(api_key=openai_api_key)
 
-    for qid in list(qrels.keys())[:MAX_QUERIES]:
-        query = queries[qid]
-        gold = set(qrels[qid].keys())
+    # Demo: one question -> context -> prompt -> answer
+    sample_qid = next(iter(qrels.keys()))
+    sample_query = queries[sample_qid]
+    results = retrieval_pipeline.retrieve(sample_query)
+    context = context_builder.build(results)
+    prompt = prompt_builder.build(sample_query, context)
+    answer = llm.generate(prompt)
 
-        results = retrieval_pipeline.retrieve(query)
-        context = context_builder.build(results)
-        retrieved = {chunk.metadata.get("doc_id") for chunk in results}
-
-        found = gold & retrieved
-        ok = len(found) > 0
-        hits += int(ok)
-        total += 1
-
-        print(f"qid={qid} {'HIT' if ok else 'MISS'} gold={gold} got={retrieved}")
-        if total == 1:
-            print("\n--- sample context ---\n")
-            print(context)
-            print("\n--- end context ---\n")
-
-    print(f"\nHIT@{TOP_K}: {hits}/{total} = {hits / total if total else 0:.3f}")
+    print("=" * 80)
+    print(f"QUERY ({sample_qid}): {sample_query}")
+    print("=" * 80)
+    print("\n--- context ---\n")
+    print(context)
+    print("\n--- prompt ---\n")
+    print(prompt)
+    print("\n--- answer ---\n")
+    print(answer)
 
 '''
     pipeline = EmbeddingPipeline(
