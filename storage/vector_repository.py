@@ -26,5 +26,6 @@ class VectorRepository(Protocol):
         query_embedding: list[float],
         limit: int = 5,
         threshold: float | None = None,
+        query: str | None = None,
     ) -> list[EmbeddedChunk]:
         ...

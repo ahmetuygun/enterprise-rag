@@ -27,6 +27,7 @@ class RetrievalPipeline:
             query_embedding,
             limit=self.top_k,
             threshold=self.threshold,
+            query=query,
         )
         if self.rerank_service is None:
             return candidates[: self.top_n]

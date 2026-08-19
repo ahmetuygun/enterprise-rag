@@ -103,6 +103,7 @@ if __name__ == "__main__":
     from embedding.openai_embedding_service import OpenAIEmbeddingService
     from embedding.huggingface_embedding_service import HuggingFaceEmbeddingService
     from storage.postgres_vector_repository import PostgresVectorRepository
+    from storage.hybrid_postgres_vector_repository import HybridPostgresVectorRepository
     from embedding_pipeline import EmbeddingPipeline
     from retrieval_pipeline import RetrievalPipeline
     from evaluation.scifact.load import load_scifact
@@ -130,7 +131,7 @@ if __name__ == "__main__":
     TOP_K = 20
     TOP_N = 5
     retrieval_pipeline = RetrievalPipeline(
-        vector_repository=PostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
+        vector_repository=HybridPostgresVectorRepository(db_url=os.environ["DATABASE_URL"]),
         embedding_service=OpenAIEmbeddingService(api_key=openai_api_key),
         top_k=TOP_K,
         top_n=TOP_N,
@@ -142,8 +143,8 @@ if __name__ == "__main__":
     prompt_builder = PromptBuilder()
     llm = OpenAILLMService(api_key=openai_api_key)
 
-    # Demo: one question -> context -> prompt -> answer
-    sample_qid = next(iter(qrels.keys()))
+    # Demo: second question -> context -> prompt -> answer
+    sample_qid = list(qrels.keys())[0]
     sample_query = queries[sample_qid]
     results = retrieval_pipeline.retrieve(sample_query)
     context = context_builder.build(results)

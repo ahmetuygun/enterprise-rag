@@ -133,9 +133,11 @@ class PostgresVectorRepository(VectorRepository):
         query_embedding: list[float],
         limit: int = 5,
         threshold: float | None = None,
+        query: str | None = None,
     ) -> list[EmbeddedChunk]:
         # threshold = max cosine distance (<=>). Lower is more similar.
         # None = no distance filter.
+        # query is unused for pure dense search (kept for VectorRepository compatibility).
         if threshold is not None and threshold < 0:
             raise ValueError("threshold must be >= 0")
 
