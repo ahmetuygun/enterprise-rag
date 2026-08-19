@@ -61,27 +61,40 @@ class HybridPostgresVectorRepository(VectorRepository):
         sparse_hits = self._keyword_search(query, limit=fetch_limit)
         return self._rrf_fuse(dense_hits, sparse_hits, limit=limit)
 
+    def _to_or_tsquery(self, query: str) -> str | None:
+        # Use english config (stopwords + stemming), then flip AND -> OR for claim queries.
+        row = self.conn.execute(
+            "SELECT plainto_tsquery('english', %s)::text",
+            (query,),
+        ).fetchone()
+        if row is None or not row[0]:
+            return None
+        return row[0].replace(" & ", " | ")
+
     def _keyword_search(self, query: str, limit: int) -> list[EmbeddedChunk]:
+        tsquery = self._to_or_tsquery(query)
+        if not tsquery:
+            return []
+
         sql = """
         SELECT content, chunk_index, metadata, embedding,
                ts_rank(
                    to_tsvector('english', content),
-                   plainto_tsquery('english', %s)
+                   to_tsquery('english', %s)
                ) AS rank
         FROM chunks
-        WHERE to_tsvector('english', content) @@ plainto_tsquery('english', %s)
+        WHERE to_tsvector('english', content) @@ to_tsquery('english', %s)
         ORDER BY rank DESC
         LIMIT %s
         """
         with self.conn.cursor() as cursor:
-            cursor.execute(sql, (query, query, limit))
+            cursor.execute(sql, (tsquery, tsquery, limit))
             return [
                 EmbeddedChunk(
                     text=row[0],
                     index=row[1],
                     metadata=row[2],
                     embedding=PostgresVectorRepository._as_float_list(row[3]),
-                    # Store rank as distance-like field for debugging; lower is better elsewhere.
                     distance=1.0 / (1.0 + float(row[4])),
                 )
                 for row in cursor.fetchall()
@@ -114,7 +127,6 @@ class HybridPostgresVectorRepository(VectorRepository):
         fused: list[EmbeddedChunk] = []
         for key in ordered_keys[:limit]:
             chunk = chunks_by_key[key]
-            # Expose fused score in distance inverted for readability (lower still ~better).
             fused.append(
                 EmbeddedChunk(
                     text=chunk.text,
